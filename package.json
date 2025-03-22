@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "cannon": "github:schteppe/cannon.js",
     "three": "^0.174.0"
   },
   "devDependencies": {
