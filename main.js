@@ -67,16 +67,13 @@ const playerCarBody = new CANNON.Body({
     position: new CANNON.Vec3(0, 5, 0), // start above ground to fall
 });
 
-// Car shape: half-extents (1, 0.25, 2) → size (2, 0.5, 4)
-// Offset shape downward by 0.25 so the center of mass is lower.
 const carShape = new CANNON.Box(new CANNON.Vec3(1, 0.25, 2));
 playerCarBody.addShape(carShape, new CANNON.Vec3(0, -0.25, 0));
 
-// Damping so the car doesn't roll or spin endlessly
 playerCarBody.linearDamping = 0.2;
 playerCarBody.angularDamping = 0.5;
 
-// IMPORTANT: Rotate the body so its local -Z is "forward" (rotate 90° around Y)
+// Rotate so that local -Z is "forward" (rotate 90° around Y)
 playerCarBody.quaternion.setFromEuler(0, Math.PI / 2, 0);
 world.addBody(playerCarBody);
 
@@ -100,7 +97,60 @@ const enemyCarMesh = createCarMesh(0x0000ff);
 scene.add(enemyCarMesh);
 
 // ===================
-// 6) Keyboard Input
+// 6) Game Arena & Obstacles
+// ===================
+
+// Create boundary walls for a square arena
+function createWall(x, y, z, width, height, depth, angleY = 0) {
+    const wallShape = new CANNON.Box(new CANNON.Vec3(width / 2, height / 2, depth / 2));
+    const wallBody = new CANNON.Body({
+        mass: 0,
+        shape: wallShape,
+        material: defaultMaterial,
+    });
+    wallBody.position.set(x, y, z);
+    wallBody.quaternion.setFromEuler(0, angleY, 0);
+    world.addBody(wallBody);
+
+    const wallGeo = new THREE.BoxGeometry(width, height, depth);
+    const wallMat = new THREE.MeshBasicMaterial({ color: 0x555555 });
+    const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+    wallMesh.position.set(x, y, z);
+    wallMesh.quaternion.copy(wallBody.quaternion);
+    scene.add(wallMesh);
+}
+
+// Create walls (arena boundaries)
+createWall(-100, 5, 0, 1, 10, 200); // left wall
+createWall(100, 5, 0, 1, 10, 200);  // right wall
+createWall(0, 5, -100, 200, 10, 1); // back wall
+createWall(0, 5, 100, 200, 10, 1);  // front wall
+
+// Create a ramp obstacle
+function createRamp(x, y, z, width, height, depth, angleX) {
+    const rampShape = new CANNON.Box(new CANNON.Vec3(width / 2, height / 2, depth / 2));
+    const rampBody = new CANNON.Body({
+        mass: 0,
+        shape: rampShape,
+        material: defaultMaterial,
+    });
+    rampBody.position.set(x, y, z);
+    rampBody.quaternion.setFromEuler(angleX, 0, 0);
+    world.addBody(rampBody);
+
+    const rampGeo = new THREE.BoxGeometry(width, height, depth);
+    const rampMat = new THREE.MeshBasicMaterial({ color: 0x888888 });
+    const rampMesh = new THREE.Mesh(rampGeo, rampMat);
+    rampMesh.position.set(x, y, z);
+    rampMesh.quaternion.copy(rampBody.quaternion);
+    scene.add(rampMesh);
+}
+
+// Place a ramp near the back of the arena
+createRamp(0, 1, -70, 20, 2, 40, -Math.PI / 8);
+
+// ===================
+// 7) Keyboard Input
 // ===================
 const keys = { w: false, s: false, a: false, d: false };
 
@@ -115,38 +165,34 @@ window.addEventListener('keyup', (e) => {
 });
 
 // ===================
-// 7) Arcade-Style Movement Settings
+// 8) Arcade-Style Movement Settings
 // ===================
 const desiredSpeed = 5; // desired car speed (units per second)
 const turnSpeed = 2.0;  // angular velocity for turning
 
 // ===================
-// 8) Animation Loop
+// 9) Animation Loop
 // ===================
 function animate() {
-    // If any driving input is active, lock pitch and roll by setting angularFactor to (0,1,0)
+    // Lock pitch & roll during driving input
     if (keys.w || keys.s || keys.a || keys.d) {
         playerCarBody.angularFactor.set(0, 1, 0);
     } else {
-        // When no input is active, allow full rotations (e.g., for collisions, flips, etc.)
         playerCarBody.angularFactor.set(1, 1, 1);
     }
 
     // Arcade-style movement: set horizontal velocity directly based on input
     if (keys.w) {
-        // Local forward is -Z
         const forward = new CANNON.Vec3(0, 0, -1);
         playerCarBody.quaternion.vmult(forward, forward);
         playerCarBody.velocity.x = forward.x * desiredSpeed;
         playerCarBody.velocity.z = forward.z * desiredSpeed;
     } else if (keys.s) {
-        // Local backward is +Z
         const backward = new CANNON.Vec3(0, 0, 1);
         playerCarBody.quaternion.vmult(backward, backward);
         playerCarBody.velocity.x = backward.x * desiredSpeed;
         playerCarBody.velocity.z = backward.z * desiredSpeed;
     } else {
-        // If no forward/back input, gradually reduce horizontal velocity
         playerCarBody.velocity.x *= 0.95;
         playerCarBody.velocity.z *= 0.95;
     }
