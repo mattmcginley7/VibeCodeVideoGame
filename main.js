@@ -164,6 +164,64 @@ window.addEventListener('keyup', (e) => {
     if (key in keys) keys[key] = false;
 });
 
+// --- Weapon Variables ---
+let lastShotTime = 0;
+const shotCooldown = 3000; // milliseconds between shots
+const projectiles = [];
+
+// Listen for mouse clicks to fire the weapon
+window.addEventListener('click', (e) => {
+    const now = performance.now();
+    if (now - lastShotTime >= shotCooldown) {
+        fireProjectile();
+        lastShotTime = now;
+    }
+});
+
+function fireProjectile() {
+    // Create a projectile (a small sphere)
+    const radius = 0.2;
+    const projectileShape = new CANNON.Sphere(radius);
+    const projectileBody = new CANNON.Body({
+        mass: 1,
+        shape: projectileShape,
+        material: defaultMaterial,
+    });
+
+    // Get the player's car forward direction (local -Z)
+    const forward = new CANNON.Vec3(0, 0, -1);
+    playerCarBody.quaternion.vmult(forward, forward);
+
+    // Set the projectile's initial position a few units in front of the car
+    const projectileOffset = 3; // adjust as needed
+    projectileBody.position.set(
+        playerCarBody.position.x + forward.x * projectileOffset,
+        playerCarBody.position.y + forward.y * projectileOffset,
+        playerCarBody.position.z + forward.z * projectileOffset
+    );
+
+    // Set the projectile's velocity (adjust projectileSpeed as desired)
+    const projectileSpeed = 15;
+    projectileBody.velocity.set(
+        forward.x * projectileSpeed,
+        forward.y * projectileSpeed,
+        forward.z * projectileSpeed
+    );
+
+    world.addBody(projectileBody);
+
+    // Create a matching Three.js mesh for the projectile
+    const projectileGeo = new THREE.SphereGeometry(radius, 16, 16);
+    const projectileMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    const projectileMesh = new THREE.Mesh(projectileGeo, projectileMat);
+    scene.add(projectileMesh);
+
+    projectiles.push({ body: projectileBody, mesh: projectileMesh });
+
+    console.log("Fired projectile!");
+}
+
+
 // ===================
 // 8) Arcade-Style Movement Settings
 // ===================
@@ -220,19 +278,44 @@ function animate() {
     enemyCarMesh.position.copy(enemyCarBody.position);
     enemyCarMesh.quaternion.copy(enemyCarBody.quaternion);
 
-    // ----- Chase Camera Logic -----
-    // Compute the desired camera position by applying the car's rotation to chaseOffset
-    // and adding the result to the car's position.
-    const carPos = new THREE.Vector3().copy(playerCarMesh.position);
-    const carQuat = new THREE.Quaternion().copy(playerCarMesh.quaternion);
+    // ----- Updated Chase Camera Logic -----
+    const carPos = playerCarMesh.position.clone();
+    const carQuat = playerCarMesh.quaternion.clone();
+    const chaseOffset = new THREE.Vector3(0, 3, 8); // 3 units above, 8 units behind the car (local space)
     const offset = chaseOffset.clone().applyQuaternion(carQuat);
     const desiredCameraPos = carPos.clone().add(offset);
 
-    // Smoothly interpolate the camera position toward desiredCameraPos
     camera.position.lerp(desiredCameraPos, 0.1);
-    // Make the camera look at the car's position
     camera.lookAt(carPos);
-    // ----- End Chase Camera Logic -----
+    // ----- End Updated Chase Camera Logic -----
+
+
+    // --- Update Projectiles ---
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const proj = projectiles[i];
+
+        // Sync the projectile mesh with its physics body
+        proj.mesh.position.copy(proj.body.position);
+        proj.mesh.quaternion.copy(proj.body.quaternion);
+
+        // Remove projectile if it travels too far from the player's car
+        if (proj.body.position.distanceTo(playerCarBody.position) > 100) {
+            world.removeBody(proj.body);
+            scene.remove(proj.mesh);
+            projectiles.splice(i, 1);
+        }
+
+        // Basic collision check with enemy car: if the distance is less than a threshold, register a hit
+        if (proj.body.position.distanceTo(enemyCarBody.position) < 2) {
+            console.log("Enemy hit!");
+            // Remove projectile upon hit (damage logic can be expanded here)
+            world.removeBody(proj.body);
+            scene.remove(proj.mesh);
+            projectiles.splice(i, 1);
+            // Optionally, subtract health from enemyCarBody here
+        }
+    }
+
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
