@@ -169,6 +169,10 @@ window.addEventListener('keyup', (e) => {
 // ===================
 const desiredSpeed = 5; // desired car speed (units per second)
 const turnSpeed = 2.0;  // angular velocity for turning
+// 9) Chase Camera Settings
+// ===================
+// Define a local offset for the camera relative to the car (e.g. 3 units above and 8 units behind)
+const chaseOffset = new THREE.Vector3(0, 3, -8);
 
 // ===================
 // 9) Animation Loop
@@ -215,6 +219,20 @@ function animate() {
 
     enemyCarMesh.position.copy(enemyCarBody.position);
     enemyCarMesh.quaternion.copy(enemyCarBody.quaternion);
+
+    // ----- Chase Camera Logic -----
+    // Compute the desired camera position by applying the car's rotation to chaseOffset
+    // and adding the result to the car's position.
+    const carPos = new THREE.Vector3().copy(playerCarMesh.position);
+    const carQuat = new THREE.Quaternion().copy(playerCarMesh.quaternion);
+    const offset = chaseOffset.clone().applyQuaternion(carQuat);
+    const desiredCameraPos = carPos.clone().add(offset);
+
+    // Smoothly interpolate the camera position toward desiredCameraPos
+    camera.position.lerp(desiredCameraPos, 0.1);
+    // Make the camera look at the car's position
+    camera.lookAt(carPos);
+    // ----- End Chase Camera Logic -----
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
