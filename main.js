@@ -166,7 +166,7 @@ window.addEventListener('keyup', (e) => {
 
 // --- Weapon Variables ---
 let lastShotTime = 0;
-const shotCooldown = 3000; // milliseconds between shots
+const shotCooldown = 1500; // milliseconds between shots
 const projectiles = [];
 
 // Listen for mouse clicks to fire the weapon
@@ -303,18 +303,32 @@ function animate() {
             world.removeBody(proj.body);
             scene.remove(proj.mesh);
             projectiles.splice(i, 1);
+            continue;
         }
 
-        // Basic collision check with enemy car: if the distance is less than a threshold, register a hit
-        if (proj.body.position.distanceTo(enemyCarBody.position) < 2) {
+        // Collision check with enemy car:
+        const hitThreshold = 2; // adjust as needed
+        if (proj.body.position.distanceTo(enemyCarBody.position) < hitThreshold) {
             console.log("Enemy hit!");
-            // Remove projectile upon hit (damage logic can be expanded here)
+
+            // Calculate impact direction from projectile to enemy car
+            const impactDirection = enemyCarBody.position.vsub(proj.body.position);
+            impactDirection.normalize();
+
+            // Increase impulse magnitude for a more noticeable effect
+            const impulseMagnitude = 50; // Increased from 10 to 50
+            const impulse = impactDirection.scale(impulseMagnitude);
+
+            // Apply the impulse at the enemy car's center
+            enemyCarBody.applyImpulse(impulse, enemyCarBody.position);
+
+            // Remove the projectile after impact
             world.removeBody(proj.body);
             scene.remove(proj.mesh);
             projectiles.splice(i, 1);
-            // Optionally, subtract health from enemyCarBody here
         }
     }
+
 
 
     renderer.render(scene, camera);
