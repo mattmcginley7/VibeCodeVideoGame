@@ -96,6 +96,31 @@ world.addBody(enemyCarBody);
 const enemyCarMesh = createCarMesh(0x0000ff);
 scene.add(enemyCarMesh);
 
+function displayDamage(damage, worldPosition) {
+    const canvas = document.createElement('canvas');
+    const size = 128;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'Bold 48px Arial';
+    ctx.fillStyle = 'red';
+    ctx.textAlign = 'center';
+    ctx.fillText(damage, size / 2, size / 2 + 16);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(5, 5, 1);
+    sprite.position.copy(worldPosition).add(new THREE.Vector3(0, 5, 0));
+    scene.add(sprite);
+
+    setTimeout(() => {
+        scene.remove(sprite);
+        spriteMaterial.dispose();
+        texture.dispose();
+    }, 1000);
+}
+
 // ===================
 // 5.5) Health Tracking
 // ===================
@@ -322,7 +347,6 @@ function animate() {
     camera.lookAt(carPos);
     // ----- End Updated Chase Camera Logic -----
 
-
     // --- Update Projectiles ---
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const proj = projectiles[i];
@@ -339,30 +363,35 @@ function animate() {
             continue;
         }
 
-        // Collision check with enemy car:
-        const hitThreshold = 2; // adjust as needed
-        if (proj.body.position.distanceTo(enemyCarBody.position) < hitThreshold && carStats.enemy.alive) {
+        // Check collision with enemy car
+        const hitThreshold = 2; // distance threshold for a hit
+        if (proj.body.position.distanceTo(enemyCarBody.position) < hitThreshold) {
             console.log("Enemy hit!");
 
-            // Apply impulse as before
+            // Calculate impact direction (from the projectile to the enemy)
             const impactDirection = enemyCarBody.position.vsub(proj.body.position).unit();
-            const impulse = impactDirection.scale(50);
+            const impulseMagnitude = 50; // Adjust for more noticeable impact
+            const impulse = impactDirection.scale(impulseMagnitude);
+
+            // Apply the impulse once at the enemy car's center
             enemyCarBody.applyImpulse(impulse, enemyCarBody.position);
 
-            // Subtract health
+            // Subtract health from the enemy car (25 damage per hit)
             carStats.enemy.health -= 25;
             console.log(`Enemy health: ${carStats.enemy.health}`);
 
-            // Destroy car if health reaches zero
-            if (carStats.enemy.health <= 0) {
-                carStats.enemy.alive = false;
-                destroyCar(enemyCarMesh, enemyCarBody);
-            }
+            // Display damage number over the enemy car
+            displayDamage(25, enemyCarMesh.position);
 
-            // Remove projectile
+            // Remove projectile after processing the hit
             world.removeBody(proj.body);
             scene.remove(proj.mesh);
             projectiles.splice(i, 1);
+
+            // If enemy health reaches 0 or below, destroy the enemy car
+            if (carStats.enemy.health <= 0) {
+                destroyCar(enemyCarMesh, enemyCarBody);
+            }
         }
     }
 
